@@ -1,0 +1,67 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+}
+
+body {
+  @apply bg-ey-gray-50 text-ey-gray-900 antialiased;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+@layer components {
+  .card {
+    @apply rounded-2xl bg-white shadow-soft border border-ey-gray-200;
+  }
+
+  .btn-primary {
+    @apply inline-flex items-center justify-center rounded-xl bg-ey-yellow px-4 py-2.5 text-sm font-semibold text-ey-black transition hover:bg-brand-400 disabled:cursor-not-allowed disabled:opacity-60;
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center justify-center rounded-xl border border-ey-gray-300 bg-white px-4 py-2.5 text-sm font-semibold text-ey-gray-800 transition hover:bg-ey-gray-50 disabled:cursor-not-allowed disabled:opacity-60;
+  }
+
+  .input {
+    @apply w-full rounded-xl border border-ey-gray-300 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-ey-yellow focus:ring-2 focus:ring-brand-100;
+  }
+
+  .label {
+    @apply mb-1.5 block text-sm font-medium text-ey-gray-700;
+  }
+
+  .page-title {
+    @apply text-xl font-bold tracking-tight text-ey-black sm:text-2xl;
+  }
+
+  .subtle {
+    @apply text-sm text-ey-gray-500;
+  }
+
+  /* Chat bubbles */
+  .chat-bubble {
+    @apply max-w-[80%] rounded-2xl px-4 py-3;
+  }
+
+  .chat-bubble-own {
+    @apply bg-ey-black text-white rounded-br-md;
+  }
+
+  .chat-bubble-other {
+    @apply bg-ey-gray-100 text-ey-gray-900 rounded-bl-md;
+  }
+}
+
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-slide-up {
+  animation: slide-up 0.25s ease-out;
+}
