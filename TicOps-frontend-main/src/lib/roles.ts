@@ -8,7 +8,7 @@ export const permissions = {
   canAccessSettings: (role: UserRole) => role === 'ADMIN',
   canCreateTicket: (_role: UserRole) => true,
   canViewActivityTimeline: (role: UserRole) => ['ADMIN', 'MANAGER', 'AGENT'].includes(role),
-  canSetPriority: (role: UserRole) => ['ADMIN', 'MANAGER', 'AGENT'].includes(role),
+  canSetPriority: (role: UserRole) => ['ADMIN', 'MANAGER', 'AGENT', 'REQUESTOR'].includes(role),
   canUseFilters: (role: UserRole) => ['ADMIN', 'MANAGER', 'AGENT'].includes(role),
   canViewInternalMeta: (role: UserRole) => ['ADMIN', 'MANAGER', 'AGENT'].includes(role),
   canCreateKbArticle: (role: UserRole) => ['ADMIN', 'AGENT'].includes(role),

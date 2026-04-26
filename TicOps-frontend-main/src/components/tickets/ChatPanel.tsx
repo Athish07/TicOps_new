@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ChatAttachment, ChatMessage, UserRole } from '../../types';
 import ChatBubble from './ChatBubble';
 import ChatInput from './ChatInput';
@@ -6,17 +6,73 @@ import ChatInput from './ChatInput';
 interface ChatPanelProps {
   messages: ChatMessage[];
   currentUserId: number;
+  ticketId: number;
   onSend: (text: string, attachments: ChatAttachment[]) => void;
+  onPoll?: () => Promise<void>;
   sending?: boolean;
   userRole?: UserRole;
 }
 
-export default function ChatPanel({ messages, currentUserId, onSend, sending, userRole }: ChatPanelProps) {
+export default function ChatPanel({ messages, currentUserId, ticketId, onSend, onPoll, sending, userRole }: ChatPanelProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const [isTyping, setIsTyping] = useState(false);
+  const [animatedIds, setAnimatedIds] = useState<Set<number | string>>(new Set());
+  const prevCountRef = useRef(messages.length);
+  const isNearBottomRef = useRef(true);
 
+  // Check if user is scrolled near the bottom
+  const checkIfNearBottom = useCallback(() => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    const threshold = 80; // px from bottom
+    isNearBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < threshold;
+  }, []);
+
+  // Track newly appeared messages for animation
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (messages.length > prevCountRef.current) {
+      const newIds = messages.slice(prevCountRef.current).map((m) => m.id);
+      setAnimatedIds((prev) => {
+        const next = new Set(prev);
+        newIds.forEach((id) => next.add(id));
+        return next;
+      });
+      // Remove animation class after it plays
+      setTimeout(() => {
+        setAnimatedIds((prev) => {
+          const next = new Set(prev);
+          newIds.forEach((id) => next.delete(id));
+          return next;
+        });
+      }, 400);
+    }
+    prevCountRef.current = messages.length;
+  }, [messages]);
+
+  // Auto-scroll only if user was already near the bottom (or sent a message themselves)
+  useEffect(() => {
+    if (isNearBottomRef.current) {
+      bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
   }, [messages.length]);
+
+  // Poll for new messages every 3 seconds
+  useEffect(() => {
+    if (!onPoll) return;
+    const interval = setInterval(() => { onPoll(); }, 3000);
+    return () => clearInterval(interval);
+  }, [onPoll, ticketId]);
+
+  const handleTypingChange = useCallback((typing: boolean) => {
+    setIsTyping(typing);
+  }, []);
+
+  // When user sends a message, force scroll to bottom
+  const handleSend = useCallback((text: string, attachments: ChatAttachment[]) => {
+    isNearBottomRef.current = true; // force scroll for own messages
+    onSend(text, attachments);
+  }, [onSend]);
 
   return (
     <div className="card flex flex-col overflow-hidden" style={{ height: '520px' }}>
@@ -30,7 +86,7 @@ export default function ChatPanel({ messages, currentUserId, onSend, sending, us
       </div>
 
       {/* Messages area */}
-      <div className="flex-1 overflow-y-auto px-4 py-4">
+      <div className="flex-1 overflow-y-auto px-4 py-4" ref={scrollContainerRef} onScroll={checkIfNearBottom}>
         {messages.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center text-center">
             <svg className="mb-3 h-10 w-10 text-ey-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}>
@@ -42,15 +98,30 @@ export default function ChatPanel({ messages, currentUserId, onSend, sending, us
         ) : (
           <div className="space-y-3">
             {messages.map((msg) => (
-              <ChatBubble key={msg.id} message={msg} isOwn={msg.senderId === currentUserId} />
+              <ChatBubble key={msg.id} message={msg} isOwn={msg.senderId === currentUserId} animate={animatedIds.has(msg.id)} />
             ))}
           </div>
         )}
+
+        {/* Typing indicator */}
+        {isTyping && (
+          <div className="mt-3 flex justify-end animate-chat-in">
+            <div className="flex items-center gap-2 rounded-2xl rounded-br-md bg-ey-gray-100 px-4 py-3">
+              <span className="flex items-center gap-1 text-ey-gray-400">
+                <span className="typing-dot" />
+                <span className="typing-dot" />
+                <span className="typing-dot" />
+              </span>
+              <span className="text-xs text-ey-gray-400">typing...</span>
+            </div>
+          </div>
+        )}
+
         <div ref={bottomRef} />
       </div>
 
       {/* Input */}
-      <ChatInput onSend={onSend} disabled={sending} userRole={userRole} />
+      <ChatInput onSend={handleSend} onTypingChange={handleTypingChange} disabled={sending} userRole={userRole} />
     </div>
   );
 }

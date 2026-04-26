@@ -1,9 +1,10 @@
-import { useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import type { ChatAttachment, UserRole } from '../../types';
 import CannedResponses from './CannedResponses';
 
 interface ChatInputProps {
   onSend: (text: string, attachments: ChatAttachment[]) => void;
+  onTypingChange?: (isTyping: boolean) => void;
   disabled?: boolean;
   userRole?: UserRole;
 }
@@ -34,11 +35,36 @@ function fileToAttachment(file: File): Promise<ChatAttachment> {
   });
 }
 
-export default function ChatInput({ onSend, disabled, userRole }: ChatInputProps) {
+export default function ChatInput({ onSend, onTypingChange, disabled, userRole }: ChatInputProps) {
   const [text, setText] = useState('');
   const [pendingFiles, setPendingFiles] = useState<ChatAttachment[]>([]);
   const [error, setError] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const typingTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
+
+  const autoResize = useCallback(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
+  }, []);
+
+  const handleTextChange = (value: string) => {
+    setText(value);
+
+    // Notify typing state
+    if (onTypingChange) {
+      onTypingChange(value.length > 0);
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+      if (value.length > 0) {
+        typingTimeoutRef.current = setTimeout(() => onTypingChange(false), 2000);
+      }
+    }
+
+    // Auto-resize textarea
+    requestAnimationFrame(autoResize);
+  };
 
   const handleFiles = async (files: FileList | null) => {
     if (!files) return;
@@ -70,6 +96,12 @@ export default function ChatInput({ onSend, disabled, userRole }: ChatInputProps
     setText('');
     setPendingFiles([]);
     setError('');
+    onTypingChange?.(false);
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    // Reset textarea height
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -136,13 +168,14 @@ export default function ChatInput({ onSend, disabled, userRole }: ChatInputProps
 
         {/* Text input */}
         <textarea
+          ref={textareaRef}
           rows={1}
           value={text}
-          onChange={(e) => setText(e.target.value)}
+          onChange={(e) => handleTextChange(e.target.value)}
           onKeyDown={handleKeyDown}
           disabled={disabled}
           placeholder="Type a message…"
-          className="input max-h-32 min-h-[40px] flex-1 resize-none !rounded-xl !py-2.5"
+          className="input max-h-40 min-h-[40px] flex-1 resize-none !rounded-xl !py-2.5 transition-all"
         />
 
         {/* Send button */}

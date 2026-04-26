@@ -22,7 +22,14 @@ export default function NotificationBell() {
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (user) ticketService.getNotifications(user.id).then(setItems);
+    if (!user) return;
+    // Initial load
+    ticketService.getNotifications(user.id).then(setItems);
+    // Poll every 10 seconds for new notifications
+    const interval = setInterval(() => {
+      ticketService.getNotifications(user.id).then(setItems);
+    }, 10000);
+    return () => clearInterval(interval);
   }, [user]);
 
   // Close on outside click

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import PageHeader from '../../components/common/PageHeader';
 import StatusBadge from '../../components/common/StatusBadge';
@@ -12,7 +12,7 @@ import { categoryService } from '../../services/categoryService';
 import { ticketService } from '../../services/ticketService';
 import { userService } from '../../services/userService';
 import { formatDate } from '../../lib/utils';
-import type { Category, ChatAttachment, TicketDetail, TicketStatus, User } from '../../types';
+import type { Category, ChatAttachment, ChatMessage, TicketDetail, TicketStatus, User } from '../../types';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { permissions } from '../../lib/roles';
@@ -67,12 +67,43 @@ export default function TicketDetailPage() {
 
   const handleComment = async (text: string, attachments: ChatAttachment[]) => {
     if (!ticket || !user || (!text.trim() && attachments.length === 0)) return;
-    setSaving(true);
-    await ticketService.sendChatMessage(ticket.id, user.id, user.name, user.role, text, attachments);
-    await load();
-    setSaving(false);
-    addToast('Message sent');
+
+    // Optimistically add the message to local state immediately
+    const optimisticMsg: ChatMessage = {
+      id: Date.now(), // temp id, will be replaced on next poll
+      ticketId: ticket.id,
+      senderId: user.id,
+      senderName: user.name,
+      senderRole: user.role,
+      text,
+      attachments,
+      createdAt: new Date().toISOString(),
+    };
+    setTicket((prev) => prev ? { ...prev, chatMessages: [...prev.chatMessages, optimisticMsg] } : prev);
+
+    // Send to backend (no full reload)
+    try {
+      await ticketService.sendChatMessage(ticket.id, user.id, user.name, user.role, text, attachments);
+    } catch {
+      addToast('Failed to send message');
+    }
   };
+
+  // Lightweight poll — only refreshes chat messages without full page reload
+  const handleChatPoll = useCallback(async () => {
+    if (!ticket) return;
+    try {
+      const detail = await ticketService.getTicketById(ticket.id);
+      setTicket((prev) => {
+        if (!prev) return detail;
+        // Only update chatMessages if count changed (avoid unnecessary re-renders)
+        if (detail.chatMessages.length !== prev.chatMessages.length) {
+          return { ...prev, chatMessages: detail.chatMessages };
+        }
+        return prev;
+      });
+    } catch { /* silently ignore poll failures */ }
+  }, [ticket?.id]);
 
   const role = user?.role ?? 'REQUESTOR';
 
@@ -132,7 +163,7 @@ export default function TicketDetailPage() {
           {permissions.canViewActivityTimeline(role) && (
             <ActivityTimeline activities={ticket.activities} users={users} />
           )}
-          <ChatPanel messages={ticket.chatMessages || []} currentUserId={user?.id ?? 0} onSend={handleComment} sending={saving} userRole={role} />
+          <ChatPanel messages={ticket.chatMessages || []} currentUserId={user?.id ?? 0} ticketId={ticket.id} onSend={handleComment} onPoll={handleChatPoll} sending={saving} userRole={role} />
         </div>
 
         <div className="space-y-6">

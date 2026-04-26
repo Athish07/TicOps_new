@@ -116,6 +116,18 @@ public class TicketService {
         // Activity log
         logActivity(ticket, ActivityType.CREATED, null, null, null, null);
 
+        // Notify assignee about new ticket
+        String link = "/tickets/" + ticket.getId();
+        if (ticket.getAssignee() != null) {
+            notificationService.createNotification(ticket.getAssignee(),
+                    "New ticket " + ticket.getTicketNumber() + " has been assigned to you", link);
+        }
+        // Notify requester that their ticket was created
+        final Ticket createdTicket = ticket;
+        userRepository.findByEmail(createdTicket.getRequesterEmail()).ifPresent(requester ->
+                notificationService.createNotification(requester,
+                        "Your ticket " + createdTicket.getTicketNumber() + " has been created", link));
+
         return mapper.toTicketListDto(ticket);
     }
 
@@ -211,6 +223,20 @@ public class TicketService {
                 .attachmentsJson(mapper.serializeAttachments(req.getAttachments()))
                 .build();
         msg = chatMessageRepository.save(msg);
+
+        // Notify other party about new chat message
+        String link = "/tickets/" + ticket.getId();
+        if (ticket.getAssignee() != null && !ticket.getAssignee().getId().equals(sender.getId())) {
+            notificationService.createNotification(ticket.getAssignee(),
+                    "New message on " + ticket.getTicketNumber() + " from " + sender.getName(), link);
+        }
+        userRepository.findByEmail(ticket.getRequesterEmail()).ifPresent(requester -> {
+            if (!requester.getId().equals(sender.getId())) {
+                notificationService.createNotification(requester,
+                        "New message on your ticket " + ticket.getTicketNumber(), link);
+            }
+        });
+
         return mapper.toChatMessageDto(msg);
     }
 
